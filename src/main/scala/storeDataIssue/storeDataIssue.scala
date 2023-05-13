@@ -1,5 +1,7 @@
 package storeDataIssue
 
+import constants._
+
 import chisel3._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util._
@@ -43,36 +45,23 @@ class storeDataIssue extends Module{
   val fromDecode  = IO(new fromDecodeUnit)
   val toPRF       = IO(new toPRFUnit)
 
-/*------------------------------------------------*/
-
 //Internal signals of the module
-val entryValid    = RegInit(true.B)
-val fifo_entry    := Cat(fromDecode.rs2Ready, fromDecode.rs2Addr, fromDecode.branchMask, entryValid)
 
-/*------------------------------------------------*/
 
-//Initiating the fifo
-val storeQueue = Module(new(RegFifo(UInt(fifo_width.W)), fifo_depth))
+//Initiating the Fifo
+val storeQueue = Reg(Vec(fifo_depth, UInt(fifo_width.W)))
 
-//connect the fifo
-storeQueue.io.enq.bits  := fifo_entry
-storeQueue.io.enq.valid := fromDecode.valid
-storeQueue.io.deq.valid := storeQueue.memReg(readPtr)(0).asBool
-storeQueue.io.deq.ready := toPRF.ready
-
-//asserting the rs2ready bit of the fifo entries based on the input from Exec unit 
-for (i <- 0 to (fifo_depth-1).U ){
-  if (storeQueue.memReg(i)(1,prfAddrWidth) === fromExec.prfAddr){
-    if (fromExec.readyNow){
-      storeQueue.memReg(i)(0) := 1.U
+//
+  def counter(depth: Int , incr: Bool): (UInt , UInt) = {
+    val cntReg = RegInit (0.U(log2Ceil(depth).W))
+    val nextVal = Mux(cntReg === (depth -1).U, 0.U, cntReg + 1.U)
+    when (incr) {
+      cntReg := nextVal
     }
+    (cntReg , nextVal)
   }
-}
 
-//Sending the oldest entry as the output if it is ready
-toPRF.rs2Ready    := storeQueue.io.deq.bits(0)
-toPRF.rs2Addr     := storeQueue.io.deq.bits(1,prfAddrWidth)
-toPRF.branchMask  := storeQueue.io.deq.bits(prfAddrWidth,fifo_width-1) 
-
+  val (readPtr , nextRead)    = counter(fifo_depth , incrRead)
+  val (writePtr , nextWrite ) = counter(fifo_depth , incrWrite)
 
 }
