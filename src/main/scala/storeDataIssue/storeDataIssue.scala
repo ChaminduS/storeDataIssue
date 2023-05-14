@@ -11,7 +11,7 @@ class composableInterface extends Bundle {
   val valid = Input(Bool())
 }
 
-class fromExecUnit extends Bundle{
+class fromROBUnit extends Bundle{
   val readyNow  = Input(Bool())
   val prfAddr   = Input(UInt(prfAddrWidth.W))
 }
@@ -101,24 +101,45 @@ class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
 
   io.deq.bits := memReg(readPtr)
   io.enq.ready := (!fullReg | (io.deq.valid & io.deq.ready)) & !modify
-  io.deq.valid := !emptyReg & !modify
-  //printf(p"$io\n")
+  io.deq.valid := !emptyReg & !modify 
 }
 
-class robResultsFifo[T <: Data ]( gen: T, depth: Int) extends robFifo(gen: T, depth: Int){
+class storeDataIssue extends Module{
 
 //Inputs and Outputs of the Module
-  val fromExec    = IO(new fromExecUnit)
+  val fromRob    = IO(new fromROBUnit)
   val fromBranch  = IO(new fromBranchUnit)
   val fromDecode  = IO(new fromDecodeUnit)
   val toPRF       = IO(new toPRFUnit)
 
-io.enq.valid      := fromDecode.valid
-fromDecode.ready  := io.enq.ready
+//Intermediate registers
+val toStore_reg = Reg(UInt(fifo_width.W))
+val branchMask_reg  = Reg(UInt(branchMaskWidth.W))
+
+//Initiating the fifo
+val sdiFifo     = Module(new sdiFifo(UInt(fifo_width.W), fifo_depth))
+
+//Connecting the fifo
+sdiFifo.io.enq.valid      := fromDecode.valid
+fromDecode.ready          := sdiFifo.io.enq.ready
+toPRF.valid               := sdiFifo.io.deq.valid
+sdiFifo.io.deq.ready      := fromRob.readyNow
+toStore_reg               := sdiFifo.io.deq.bits
+
+//Connecting the register to the outputs to PRF
+toPRF.rs2Addr     := toStore_reg(0,5)
+toPRF.branchMask  := toStore_reg(6,9) 
+
+//Defining a priority encoder
+
+
+
+//branch Mask logic
+
 
 
 }
 
 object sdiVerilog extends App {
-  (new chisel3.stage.ChiselStage).emitVerilog(new storeDataIssue(UInt(fifo_width.W),fifo_depth))
+  (new chisel3.stage.ChiselStage).emitVerilog(new storeDataIssue())
 }
