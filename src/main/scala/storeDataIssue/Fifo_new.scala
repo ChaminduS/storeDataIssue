@@ -1,42 +1,13 @@
-package storeDataIssue
+package pipeline.fifo
 
-import constants._
-
+import Chisel.log2Ceil
 import chisel3._
-import chisel3.experimental.BundleLiterals._
+import pipeline.ports._
 import chisel3.util._
 
-class composableInterface extends Bundle {
-  val ready = Output(Bool())
-  val valid = Input(Bool())
-}
-
-class fromExecUnit extends Bundle{
-  val readyNow  = Input(Bool())
-  val prfAddr   = Input(UInt(prfAddrWidth.W))
-}
-
-class fromBranchUnit extends Bundle{
-  val passOrFail  = Input(Bool())
-  val branchMask  = Input(UInt(branchMaskWidth.W))
-  val valid       = Input(Bool())
-}
-
-class toPRFUnit extends composableInterface{
-  val instruction   = Output(UInt(32.W))
-  val rs2Ready      = Output(Bool())
-  val rs2Addr       = Output(UInt(prfAddrWidth.W))
-  val branchMask    = Output(UInt(branchMaskWidth.W))
-}
-
-class fromDecodeUnit extends composableInterface{
-  val instruction   = Input(UInt(32.W))
-  val rs2Addr       = Input(UInt(prfAddrWidth.W))
-  val rs2Ready      = Input(Bool())
-  val branchMask    = Input(UInt(branchMaskWidth.W))
-}
-
-//Initiating the Fifo
+/**
+  * FIFO IO with enqueue and dequeue ports using the ready/valid interface.
+  */
 class FifoIO[T <: Data](private val gen: T) extends Bundle {
   val enq = Flipped(new DecoupledIO(gen))
   val deq = new DecoupledIO(gen)
@@ -47,7 +18,7 @@ abstract class Fifo[T <: Data ]( gen: T, val depth: Int) extends Module  with Re
   assert(depth > 0, "Number of buffer elements needs to be larger than 0")
 }
 
-class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
+class robFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
   T, depth: Int) {
 
   val incrRead = WireDefault(false.B)
@@ -106,19 +77,35 @@ class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
 }
 
 class robResultsFifo[T <: Data ]( gen: T, depth: Int) extends robFifo(gen: T, depth: Int){
+  class robWriteport extends Bundle{
+    val valid = Input(Bool())
+    val data = Input(gen)
+    val addr = Input(UInt(log2Ceil(depth).W))
+  }
 
-//Inputs and Outputs of the Module
-  val fromExec    = IO(new fromExecUnit)
-  val fromBranch  = IO(new fromBranchUnit)
-  val fromDecode  = IO(new fromDecodeUnit)
-  val toPRF       = IO(new toPRFUnit)
+  // Result write ports
+  val w1 = IO(new robWriteport)
+  val w2 = IO(new robWriteport)
+  val w3 = IO(new robWriteport)
 
-io.enq.valid      := fromDecode.valid
-fromDecode.ready  := io.enq.ready
+  when (w1.valid){
+    memReg(w1.addr) := w1.data
+  }
 
+  when(w2.valid) {
+    memReg(w2.addr) := w2.data
+  }
+
+  when(w3.valid) {
+    memReg(w3.addr) := w3.data
+  }
+
+  val allocatedAddr = IO(Output(UInt(log2Ceil(depth).W)))
+
+  allocatedAddr := writePtr
 
 }
 
-object sdiVerilog extends App {
-  (new chisel3.stage.ChiselStage).emitVerilog(new storeDataIssue(UInt(fifo_width.W),fifo_depth))
+object robVerilog extends App {
+  (new chisel3.stage.ChiselStage).emitVerilog(new robFifo(UInt(64.W),64))
 }
