@@ -122,6 +122,8 @@ val sdiFifo     = Module(new sdiFifo(UInt(fifo_width.W), fifo_depth))
 //Connecting the fifo
 sdiFifo.io.enq.valid      := fromDecode.valid
 fromDecode.ready          := sdiFifo.io.enq.ready
+sdiFifo.io.enq.bits       := Cat(fromDecode.rs2Addr,fromDecode.branchMask)
+
 toPRF.valid               := sdiFifo.io.deq.valid
 sdiFifo.io.deq.ready      := fromRob.readyNow
 toStore_reg               := sdiFifo.io.deq.bits
@@ -136,6 +138,10 @@ toPRF.branchMask  := toStore_reg(6,9)
 
 //branch Mask logic
 
+
+//Temporary assignment
+sdiFifo.modify  := false.B
+sdiFifo.modifyVal := 0.U
 
 
 }
