@@ -91,8 +91,6 @@ class sdiFifo( depth: Int) extends Fifo(depth: Int) {
   }
 
 
-
-
   when(io.deq.ready && io.deq.valid && io.enq.valid && io.enq.ready) {
     memReg(writePtr) := io.enq.bits
     incrWrite := true.B
@@ -149,7 +147,6 @@ fromDecode.ready          := sdiFifo.io.enq.ready
 sdiFifo.io.enq.bits       := Cat(fromDecode.rs2Addr,fromDecode.branchMask)
 sdiFifo.branch <> fromBranch
 
-//toPRF.valid               := sdiFifo.io.deq.valid
 sdiFifo.io.deq.ready      := fromRob.readyNow
 toStore_reg               := sdiFifo.io.deq.bits
 
@@ -157,11 +154,6 @@ toStore_reg               := sdiFifo.io.deq.bits
 toPRF.rs2Addr     := toStore_reg(0,5)
 toPRF.branchMask  := toStore_reg(6,9) 
   
-
-
-//Temporary assignment
-sdiFifo.modify  := false.B
-sdiFifo.modifyVal := 0.U
 
 
 }
