@@ -37,33 +37,47 @@ class fromDecodeUnit extends composableInterface{
 }
 
 //Initiating the Fifo
-class FifoIO[T <: Data](private val gen: T) extends Bundle {
-  val enq = Flipped(new DecoupledIO(gen))
-  val deq = new DecoupledIO(gen)
+class FifoIO extends Bundle {
+  val enq = Flipped(new DecoupledIO(UInt(fifo_width.W)))
+  val deq = new DecoupledIO(UInt(fifo_width.W))
 }
 
-abstract class Fifo[T <: Data ]( gen: T, val depth: Int) extends Module  with RequireSyncReset{
-  val io = IO(new FifoIO(gen))
+abstract class Fifo( val depth: Int) extends Module  with RequireSyncReset{
+  val io = IO(new FifoIO)
   assert(depth > 0, "Number of buffer elements needs to be larger than 0")
 }
 
-class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
-  T, depth: Int) {
+class sdiFifo( depth: Int) extends Fifo(depth: Int) {
+  // branch invalidation port
+  val branch = IO(new fromBranchUnit)
+  val branchFails = Wire(Vec(depth,Bool()))
+
+  val readReg = RegInit(0.U(log2Ceil(depth).W))
+  val nextRead = Mux(readReg === (depth - 1).U, 0.U, readReg + 1.U)
+  val writeReg = RegInit(0.U(log2Ceil(depth).W))
+  val nextWrite = Mux(writeReg === (depth - 1).U, 0.U, writeReg + 1.U)
+
+  // the register based memory
+  val memReg = Mem(depth, UInt(fifo_width.W))
+  val readPtr = readReg
+  val writePtr = writeReg
+  val emptyReg = RegInit(true.B)
+  val fullReg = RegInit(false.B)
+
+
 
   val incrRead = WireDefault(false.B)
   val incrWrite = WireDefault(false.B)
 
-  val modify = IO(Input(Bool()))
-  val modifyVal = IO(Input(UInt(log2Ceil(depth).W)))
 
-  val readReg = RegInit (0.U(log2Ceil(depth).W))
-  val nextRead = Mux(readReg === (depth -1).U, 0.U, readReg + 1.U)
+  val modifyVal = PriorityEncoder(branchFails)
+  val encoderInvalid = !(branchFails(depth-1) === 1.B) & (modifyVal === (depth-1).U)
+  val modify = branch.valid & !branch.passOrFail & !encoderInvalid
+
+
   when (incrRead) {
     readReg := nextRead
   }
-
-  val writeReg = RegInit(0.U(log2Ceil(depth).W))
-  val nextWrite = Mux(writeReg === (depth - 1).U, 0.U, writeReg + 1.U)
 
 
   when (modify){
@@ -76,12 +90,7 @@ class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
     writeReg := nextWrite
   }
 
-  // the register based memory
-  val memReg = Mem(depth , gen)
-  val readPtr = readReg
-  val writePtr = writeReg
-  val emptyReg = RegInit(true.B)
-  val fullReg = RegInit(false.B)
+
 
 
   when(io.deq.ready && io.deq.valid && io.enq.valid && io.enq.ready) {
@@ -101,7 +110,22 @@ class sdiFifo[T <: Data ]( gen: T, depth: Int) extends Fifo(gen:
 
   io.deq.bits := memReg(readPtr)
   io.enq.ready := (!fullReg | (io.deq.valid & io.deq.ready)) & !modify
-  io.deq.valid := !emptyReg & !modify 
+  io.deq.valid := !emptyReg & !modify
+
+  //val memVals = Seq.fill(depth)(gen)
+
+  for (i <- 0 until depth) {
+    branchFails(i) := !((memReg(i)(branchMaskWidth - 1, 0) & branch.branchMask) === 0.U)
+  }
+
+  when(branch.valid){
+    when(branch.passOrFail){
+      for(i<-0 until depth){
+        memReg(i) := memReg(i) ^ branch.branchMask
+      }
+    }
+  }
+
 }
 
 class storeDataIssue extends Module{
@@ -117,26 +141,22 @@ val toStore_reg = Reg(UInt(fifo_width.W))
 val branchMask_reg  = Reg(UInt(branchMaskWidth.W))
 
 //Initiating the fifo
-val sdiFifo     = Module(new sdiFifo(UInt(fifo_width.W), fifo_depth))
+val sdiFifo     = Module(new sdiFifo(fifo_depth))
 
 //Connecting the fifo
 sdiFifo.io.enq.valid      := fromDecode.valid
 fromDecode.ready          := sdiFifo.io.enq.ready
 sdiFifo.io.enq.bits       := Cat(fromDecode.rs2Addr,fromDecode.branchMask)
+sdiFifo.branch <> fromBranch
 
-toPRF.valid               := sdiFifo.io.deq.valid
+//toPRF.valid               := sdiFifo.io.deq.valid
 sdiFifo.io.deq.ready      := fromRob.readyNow
 toStore_reg               := sdiFifo.io.deq.bits
 
 //Connecting the register to the outputs to PRF
 toPRF.rs2Addr     := toStore_reg(0,5)
 toPRF.branchMask  := toStore_reg(6,9) 
-
-//Defining a priority encoder
-
-
-
-//branch Mask logic
+  
 
 
 //Temporary assignment
@@ -147,5 +167,5 @@ sdiFifo.modifyVal := 0.U
 }
 
 object sdiVerilog extends App {
-  (new chisel3.stage.ChiselStage).emitVerilog(new storeDataIssue())
+  (new chisel3.stage.ChiselStage).emitVerilog(new sdiFifo(fifo_depth))
 }
