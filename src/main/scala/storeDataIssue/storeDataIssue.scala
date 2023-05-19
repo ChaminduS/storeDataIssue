@@ -13,7 +13,7 @@ class composableInterface extends Bundle {
 
 class fromROBUnit extends Bundle{
   val readyNow  = Input(Bool())
-  val prfAddr   = Input(UInt(prfAddrWidth.W))
+  // val prfAddr   = Input(UInt(prfAddrWidth.W))
 }
 
 class fromBranchUnit extends Bundle{
@@ -113,13 +113,13 @@ class sdiFifo( depth: Int) extends Fifo(depth: Int) {
   //val memVals = Seq.fill(depth)(gen)
 
   for (i <- 0 until depth) {
-    branchFails(i) := !((memReg(i)(branchMaskWidth - 1, 0) & branch.branchMask) === 0.U)
+    branchFails(i) := !((memReg(i)(9, 6) & branch.branchMask) === 0.U)
   }
 
   when(branch.valid){
     when(branch.passOrFail){
       for(i<-0 until depth){
-        memReg(i) := memReg(i) ^ branch.branchMask
+        memReg(i) := memReg(i)(9,6) ^ branch.branchMask
       }
     }
   }
