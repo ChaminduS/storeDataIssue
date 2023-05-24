@@ -1,3 +1,5 @@
+package storeDataIssue
+
 import chisel3._
 import chisel3.util._
 import chisel3.Driver
@@ -10,7 +12,7 @@ class storeDataIssue_tester (dut : storeDataIssue) extends PeekPokeTester(dut){
     step(1)
     poke (dut.fromDecode.valid, true.B)
     poke (dut.fromDecode.rs2Addr, "b001011".U)
-    poke (dut.fromDecode.branchMask, "b1101".U)
+    poke (dut.fromDecode.branchMask, "b1100".U)
     step(1)
     poke (dut.fromBranch.valid, true.B)
     poke (dut.fromBranch.passOrFail, true.B)
@@ -20,7 +22,7 @@ class storeDataIssue_tester (dut : storeDataIssue) extends PeekPokeTester(dut){
     step(1)
     expect (dut.toPRF.valid, true.B)
     expect (dut.toPRF.rs2Addr, "b001001".U)
-    expect (dut.toPRF.branchMask, "")
+    expect (dut.toPRF.branchMask, "b0000".U)
 
 
 
@@ -29,6 +31,6 @@ class storeDataIssue_tester (dut : storeDataIssue) extends PeekPokeTester(dut){
 
 object storeDataIssue_tester extends App{
     chisel3.iotesters.Driver(()=>new storeDataIssue) {c =>
-        new storeDataIssue(c)
+        new storeDataIssue_tester(c)
     }
 }

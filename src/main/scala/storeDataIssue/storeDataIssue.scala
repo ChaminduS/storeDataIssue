@@ -5,36 +5,8 @@ import constants._
 import chisel3._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util._
+import chisel3.experimental.IO
 
-class composableInterface extends Bundle {
-  val ready = Output(Bool())
-  val valid = Input(Bool())
-}
-
-class fromROBUnit extends Bundle{
-  val readyNow  = Input(Bool())
-  // val prfAddr   = Input(UInt(prfAddrWidth.W))
-}
-
-class fromBranchUnit extends Bundle{
-  val passOrFail  = Input(Bool())
-  val branchMask  = Input(UInt(branchMaskWidth.W))
-  val valid       = Input(Bool())
-}
-
-class toPRFUnit extends composableInterface{
-  val instruction   = Output(UInt(32.W))
-  val rs2Ready      = Output(Bool())
-  val rs2Addr       = Output(UInt(prfAddrWidth.W))
-  val branchMask    = Output(UInt(branchMaskWidth.W))
-}
-
-class fromDecodeUnit extends composableInterface{
-  val instruction   = Input(UInt(32.W))
-  val rs2Addr       = Input(UInt(prfAddrWidth.W))
-  val rs2Ready      = Input(Bool())
-  val branchMask    = Input(UInt(branchMaskWidth.W))
-}
 
 //Initiating the Fifo
 class FifoIO extends Bundle {
@@ -126,13 +98,51 @@ class sdiFifo( depth: Int) extends Fifo(depth: Int) {
 
 }
 
+class composableInterface extends Bundle {
+  val ready = Output(Bool())
+  val valid = Input(Bool())
+}
+
+class fromROBUnit extends Bundle{
+  val readyNow  = Input(Bool())
+  // val prfAddr   = Input(UInt(prfAddrWidth.W))
+}
+
+class fromBranchUnit extends Bundle{
+  val passOrFail  = Input(Bool())
+  val branchMask  = Input(UInt(branchMaskWidth.W))
+  val valid       = Input(Bool())
+}
+
+class toPRFUnit extends Bundle{
+  val instruction   = Output(UInt(32.W))
+  val valid         = Output(Bool())
+  val rs2Addr       = Output(UInt(prfAddrWidth.W))
+  val branchMask    = Output(UInt(branchMaskWidth.W))
+}
+
+class fromDecodeUnit extends composableInterface{
+  val instruction   = Input(UInt(32.W))
+  val rs2Addr       = Input(UInt(prfAddrWidth.W))
+  val rs2Ready      = Input(Bool())
+  val branchMask    = Input(UInt(branchMaskWidth.W))
+}
+
+
 class storeDataIssue extends Module{
 
+  // val io = IO(new Bundle(){
+  //   val fromROB    = new fromROBUnit
+  //   val fromBranch = new fromBranchUnit
+  //   val fromDecode = new fromDecodeUnit
+  //   val toPRF      = new toPRFUnit
+  // })
+
 //Inputs and Outputs of the Module
-  val fromRob    = IO(new fromROBUnit)
-  val fromBranch  = IO(new fromBranchUnit)
-  val fromDecode  = IO(new fromDecodeUnit)
-  val toPRF       = IO(new toPRFUnit)
+val fromROB    = IO(new fromROBUnit)
+val fromBranch  = IO(new fromBranchUnit)
+val fromDecode  = IO(new fromDecodeUnit)
+val toPRF       = IO(new toPRFUnit)
 
 //Intermediate registers
 val toStore_reg = Reg(UInt(fifo_width.W))
@@ -147,17 +157,18 @@ fromDecode.ready          := sdiFifo.io.enq.ready
 sdiFifo.io.enq.bits       := Cat(fromDecode.rs2Addr,fromDecode.branchMask)
 sdiFifo.branch <> fromBranch
 
-sdiFifo.io.deq.ready      := fromRob.readyNow
+sdiFifo.io.deq.ready      := fromROB.readyNow
 toStore_reg               := sdiFifo.io.deq.bits
 
 //Connecting the register to the outputs to PRF
-toPRF.rs2Addr     := toStore_reg(0,5)
-toPRF.branchMask  := toStore_reg(6,9) 
-  
+toPRF.rs2Addr     := toStore_reg(5,0)
+toPRF.branchMask  := toStore_reg(9,6) 
+toPRF.instruction := fromDecode.instruction
+toPRF.valid       := sdiFifo.io.deq.valid
 
 
 }
 
 object sdiVerilog extends App {
-  (new chisel3.stage.ChiselStage).emitVerilog(new sdiFifo(fifo_depth))
+  (new chisel3.stage.ChiselStage).emitVerilog(new storeDataIssue())
 }
