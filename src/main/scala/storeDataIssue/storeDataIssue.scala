@@ -131,13 +131,6 @@ class fromDecodeUnit extends composableInterface{
 
 class storeDataIssue extends Module{
 
-  // val io = IO(new Bundle(){
-  //   val fromROB    = new fromROBUnit
-  //   val fromBranch = new fromBranchUnit
-  //   val fromDecode = new fromDecodeUnit
-  //   val toPRF      = new toPRFUnit
-  // })
-
 //Inputs and Outputs of the Module
 val fromROB    = IO(new fromROBUnit)
 val fromBranch  = IO(new fromBranchUnit)
