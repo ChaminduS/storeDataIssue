@@ -147,15 +147,15 @@ val sdiFifo     = Module(new sdiFifo(fifo_depth))
 //Connecting the fifo
 sdiFifo.io.enq.valid      := fromDecode.valid
 fromDecode.ready          := sdiFifo.io.enq.ready
-sdiFifo.io.enq.bits       := Cat(fromDecode.rs2Addr,fromDecode.branchMask)
+sdiFifo.io.enq.bits       := Cat(fromDecode.branchMask, fromDecode.rs2Addr)
 sdiFifo.branch <> fromBranch
 
 sdiFifo.io.deq.ready      := fromROB.readyNow
-toStore_reg               := sdiFifo.io.deq.bits
+//toStore_reg               := sdiFifo.io.deq.bits
 
 //Connecting the register to the outputs to PRF
-toPRF.rs2Addr     := toStore_reg(5,0)
-toPRF.branchMask  := toStore_reg(9,6) 
+toPRF.rs2Addr     := sdiFifo.io.deq.bits(5,0)
+toPRF.branchMask  := sdiFifo.io.deq.bits(9,6) 
 toPRF.instruction := fromDecode.instruction
 toPRF.valid       := sdiFifo.io.deq.valid
 
