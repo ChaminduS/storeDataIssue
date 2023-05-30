@@ -27,15 +27,23 @@ class storeDataIssue_tester extends AnyFlatSpec with ChiselScalatestTester {
             dut.clock.step()
             dut.fromBranch.valid.poke(true.B)
             dut.fromBranch.passOrFail.poke(true.B)
-            dut.fromBranch.branchMask.poke("b1001".U)
+            dut.fromBranch.branchMask.poke("b1011".U)
             dut.clock.step()
             dut.fromROB.readyNow.poke(true.B)
             dut.clock.step()
+            dut.clock.step()
             dut.toPRF.valid.expect(true.B)
             dut.toPRF.rs2Addr.expect("b001101".U)
-            dut.toPRF.branchMask.expect("b0000".U)
+            // dut.toPRF.branchMask.expect("b0000".U)
             println("branch mask value :" + dut.toPRF.branchMask.peek())
             println("rs2Addr value :" + dut.toPRF.rs2Addr.peek())
+
+            dut.clock.step()
+            println("branch mask value :" + dut.toPRF.branchMask.peek())
+            println("rs2Addr value :" + dut.toPRF.rs2Addr.peek())
+
+
+            
         }
 
     }

@@ -91,7 +91,7 @@ class sdiFifo( depth: Int) extends Fifo(depth: Int) {
   when(branch.valid){
     when(branch.passOrFail){
       for(i<-0 until depth){
-        memReg(i) := memReg(i)(9,6) ^ branch.branchMask
+        memReg(i) := Cat(memReg(i)(9,6) ^ branch.branchMask , memReg(i)(5,0))
       }
     }
   }

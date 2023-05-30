@@ -25,3 +25,4 @@ verilator-tests/scheduler/instrIssue
 verilator-tests/instrIssue/instrIssue
 verilator-tests/decode/obj_dir/*
 verilator-tests/decode/decode
+Modelsim/
